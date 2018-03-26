@@ -30,7 +30,7 @@
 // MAC address to perform the ther framing
 //
 // linux debian build:
-//   cc -lpcap -o ptb ptb.c
+//   cc -o ptb ptb.c -lpcap 
 //
 // Geoff Huston, APNIC, 2018
 //
