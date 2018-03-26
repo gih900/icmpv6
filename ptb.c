@@ -30,7 +30,7 @@
 // MAC address to perform the ther framing
 //
 // linux debian build:
-//   cc -lpcap -o ptb ptb.c
+//   cc -o ptb ptb.c -lpcap 
 //
 // Geoff Huston, APNIC, 2018
 //
@@ -129,7 +129,6 @@ uint8_t *data, *ether_frame ;
 char *interface = DEVICE ;
 char *target, *src_ip, *dst_ip ;
 int frame_length ;
-char *filter ;
 
 
 // default Ethernet snap length (maximum bytes per packet to capture)
@@ -466,19 +465,18 @@ icmp6_checksum (struct ip6_hdr *iphdr, struct icmp6_hdr *icmp6hdr, int len)
 void
 open_raw_socket()
 {
-  ra_mac();
+  if (dst_mac_set == 0) {
+    printf("Get dst Mac address from RA\n");
+    ra_mac();
+  }
 
   // Allocate memory for various arrays. 
   data = allocate_ustrmem (IP_MAXPACKET); 
   ether_frame = allocate_ustrmem (IP_MAXPACKET); 
-  interface = allocate_strmem (40); 
   target = allocate_strmem (INET6_ADDRSTRLEN); 
   src_ip = allocate_strmem (INET6_ADDRSTRLEN); 
   dst_ip = allocate_strmem (INET6_ADDRSTRLEN); 
 
-  // Interface to send packet through. 
-  strcpy (interface, DEVICE); 
- 
   // Submit request for a socket descriptor to look up interface. 
   if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) { 
     perror ("socket() failed to get socket descriptor for using ioctl() "); 
@@ -693,7 +691,6 @@ main (int argc, char **argv) {
   char errbuff[PCAP_ERRBUF_SIZE] ;          /* error buffer */ 
   struct bpf_program fp;                    /* The compiled filter expression */      
   char *filter_exp = FILTER ;               /* The filter expression */       
-  char *dev = DEVICE ;                      /* pcap device */
   bpf_u_int32 net = PCAP_NETMASK_UNKNOWN ;
   time_t t;
   int tlen, ch ;
@@ -704,13 +701,14 @@ main (int argc, char **argv) {
   while (((ch = getopt(argc,argv, "m:i:a:"))) != -1) {
     switch(ch) {
       case 'i':
-        dev = strdup(optarg) ;
+        interface = strdup(optarg) ;
         break ;
       case 'm':
 	if (sscanf(optarg, "%x:%x:%x:%x:%x:%x", &dst_mac[0], &dst_mac[1], &dst_mac[2], &dst_mac[3], &dst_mac[4], &dst_mac[5]) != 6) {
           fprintf(stderr,"%s not a MAC address\n",optarg) ;
           exit(1) ;
-	  }
+      }
+      dst_mac_set = 1;
 	break;
       case 'a':
         if (!inet_pton(AF_INET6,optarg,&ip6_addr)) {
@@ -724,8 +722,8 @@ main (int argc, char **argv) {
           exit (EXIT_FAILURE);
           }
         tlen = strlen(FILTER) + 10 + strlen(target) ;
-	filter = malloc(tlen) ;
-        sprintf(filter,"%s and host %s",FILTER,target) ;
+        filter_exp = malloc(tlen) ;
+        sprintf(filter_exp,"%s and host %s",FILTER,target) ;
         break ;
       default:
         usage() ;
@@ -738,7 +736,7 @@ main (int argc, char **argv) {
 
   /* open capture device */   
   if ((handle = pcap_open_live(dev, SNAP_LEN, 1, 1000, errbuff)) == NULL) {
-    fprintf(stderr, "Couldn't open device %s: %s\n", dev, errbuff); 
+    fprintf(stderr, "Couldn't open device %s: %s\n", interface, errbuff); 
     exit(EXIT_FAILURE) ; 
     }     
  
